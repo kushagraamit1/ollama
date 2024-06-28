@@ -57,10 +57,10 @@ func (t *tensorBase) SetRepacker(fn repacker) {
 
 type repacker func(string, []float32, []uint64) ([]float32, error)
 
-func parseTensors(fsys fs.FS) ([]Tensor, error) {
+func parseTensors(fsys fs.FS, replacer *strings.Replacer) ([]Tensor, error) {
 	patterns := []struct {
 		Pattern string
-		Func    func(fs.FS, ...string) ([]Tensor, error)
+		Func    func(fs.FS, *strings.Replacer, ...string) ([]Tensor, error)
 	}{
 		{"model-*-of-*.safetensors", parseSafetensors},
 		{"model.safetensors", parseSafetensors},
@@ -76,7 +76,7 @@ func parseTensors(fsys fs.FS) ([]Tensor, error) {
 		}
 
 		if len(matches) > 0 {
-			return pattern.Func(fsys, matches...)
+			return pattern.Func(fsys, replacer, matches...)
 		}
 	}
 
