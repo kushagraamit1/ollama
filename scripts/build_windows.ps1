@@ -30,9 +30,12 @@ function checkEnv() {
         $script:NVIDIA_DIR=$env:NVIDIA_DIR
     }
     
-    $script:INNO_SETUP_DIR=(get-item "C:\Program Files*\Inno Setup*\")[0]
+    $inoSetup=(get-item "C:\Program Files*\Inno Setup*\")
+    if ($inoSetup.length -gt 0) {
+        $script:INNO_SETUP_DIR=$inoSetup[0]
+    }
 
-    $script:DEPS_DIR="${script:SRC_DIR}\dist\windows-${script:TARGET_ARCH}"
+    $script:DIST_DIR="${script:SRC_DIR}\dist\windows-${script:TARGET_ARCH}"
     $env:CGO_ENABLED="1"
     echo "Checking version"
     if (!$env:VERSION) {
@@ -91,7 +94,7 @@ function buildApp() {
     write-host "Building Ollama App"
     cd "${script:SRC_DIR}\app"
     & windres -l 0 -o ollama.syso ollama.rc
-    & go build -trimpath -ldflags "-s -w -H windowsgui -X=github.com/ollama/ollama/version.Version=$script:VERSION -X=github.com/ollama/ollama/server.mode=release" .
+    & go build -trimpath -ldflags "-s -w -H windowsgui -X=github.com/ollama/ollama/version.Version=$script:VERSION -X=github.com/ollama/ollama/server.mode=release" -o "${script:SRC_DIR}\dist\windows-${script:TARGET_ARCH}-app.exe" .
     if ($LASTEXITCODE -ne 0) { exit($LASTEXITCODE)}
     if ("${env:KEY_CONTAINER}") {
         & "${script:SignTool}" sign /v /fd sha256 /t http://timestamp.digicert.com /f "${script:OLLAMA_CERT}" `
@@ -103,22 +106,33 @@ function buildApp() {
 function gatherDependencies() {
     write-host "Gathering runtime dependencies"
     cd "${script:SRC_DIR}"
-    md "${script:DEPS_DIR}\ollama_runners" -ea 0 > $null
+    md "${script:DIST_DIR}\ollama_runners" -ea 0 > $null
 
     # TODO - this varies based on host build system and MSVC version - drive from dumpbin output
     # currently works for Win11 + MSVC 2019 + Cuda V11
-    cp "${env:VCToolsRedistDir}\x64\Microsoft.VC*.CRT\msvcp140*.dll" "${script:DEPS_DIR}\ollama_runners\"
-    cp "${env:VCToolsRedistDir}\x64\Microsoft.VC*.CRT\vcruntime140.dll" "${script:DEPS_DIR}\ollama_runners\"
-    cp "${env:VCToolsRedistDir}\x64\Microsoft.VC*.CRT\vcruntime140_1.dll" "${script:DEPS_DIR}\ollama_runners\"
+    if ($script:TARGET_ARCH -eq "amd64") {
+        $depArch="x64"
+    } else {
+        $depArch=$script:TARGET_ARCH
+    }
+    cp "${env:VCToolsRedistDir}\${depArch}\Microsoft.VC*.CRT\msvcp140*.dll" "${script:DIST_DIR}\ollama_runners\"
+    cp "${env:VCToolsRedistDir}\${depArch}\Microsoft.VC*.CRT\vcruntime140.dll" "${script:DIST_DIR}\ollama_runners\"
+    cp "${env:VCToolsRedistDir}\${depArch}\Microsoft.VC*.CRT\vcruntime140_1.dll" "${script:DIST_DIR}\ollama_runners\"
+    $llvmCrtDir="$env:VCToolsRedistDir\..\..\..\Tools\Llvm\${depArch}\bin"
+    if ($depArch -eq "arm64") {
+        $llvmCrtDir="$env:VCToolsRedistDir\..\..\..\Tools\Llvm\bin"
+    }
+    write-host "Copying files from $llvmCrtDir"
     foreach ($part in $("runtime", "stdio", "filesystem", "math", "convert", "heap", "string", "time", "locale", "environment")) {
-        cp "$env:VCToolsRedistDir\..\..\..\Tools\Llvm\x64\bin\api-ms-win-crt-${part}*.dll" "${script:DEPS_DIR}\ollama_runners\"
+        write-host "cp ${llvmCrtDir}\api-ms-win-crt-${part}*.dll ${script:DIST_DIR}\ollama_runners\"
+        cp "${llvmCrtDir}\api-ms-win-crt-${part}*.dll" "${script:DIST_DIR}\ollama_runners\"
     }
 
 
     cp "${script:SRC_DIR}\app\ollama_welcome.ps1" "${script:SRC_DIR}\dist\"
     if ("${env:KEY_CONTAINER}") {
         write-host "about to sign"
-        foreach ($file in (get-childitem "${script:DEPS_DIR}\cuda\cu*.dll") + @("${script:SRC_DIR}\dist\ollama_welcome.ps1")){
+        foreach ($file in (get-childitem "${script:DIST_DIR}\cuda\cu*.dll") + @("${script:SRC_DIR}\dist\ollama_welcome.ps1")){
             write-host "signing $file"
             & "${script:SignTool}" sign /v /fd sha256 /t http://timestamp.digicert.com /f "${script:OLLAMA_CERT}" `
                 /csp "Google Cloud KMS Provider" /kc ${env:KEY_CONTAINER} $file
@@ -128,6 +142,10 @@ function gatherDependencies() {
 }
 
 function buildInstaller() {
+    if ($null -eq ${script:INNO_SETUP_DIR}) {
+        write-host "Inno Setup not present, skipping installer build"
+        return
+    }
     write-host "Building Ollama Installer"
     cd "${script:SRC_DIR}\app"
     $env:PKG_VERSION=$script:PKG_VERSION
@@ -144,13 +162,20 @@ function distZip() {
     Compress-Archive -Path "${script:SRC_DIR}\dist\windows-${script:TARGET_ARCH}\*" -DestinationPath "${script:SRC_DIR}\dist\ollama-windows-${script:TARGET_ARCH}.zip" -Force
 }
 
+checkEnv
 try {
-    checkEnv
-    buildOllama
-    buildApp
-    gatherDependencies
-    buildInstaller
-    distZip
+    if ($($args.count) -eq 0) {
+        buildOllama
+        buildApp
+        gatherDependencies
+        buildInstaller
+        distZip
+    } else {
+        for ( $i = 0; $i -lt $args.count; $i++ ) {
+            write-host "performing $($args[$i])"
+            & $($args[$i])
+        } 
+    }
 } catch {
     write-host "Build Failed"
     write-host $_

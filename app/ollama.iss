@@ -28,8 +28,8 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-ArchitecturesAllowed=x64 arm64
-ArchitecturesInstallIn64BitMode=x64 arm64
+ArchitecturesAllowed=x64compatible arm64
+ArchitecturesInstallIn64BitMode=x64compatible arm64
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -86,19 +86,28 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 DialogFontSize=12
 
 [Files]
-Source: ".\app.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}" ; Flags: ignoreversion 64bit
-Source: "..\ollama.exe"; DestDir: "{app}"; Flags: ignoreversion 64bit
-Source: "..\dist\windows-{#ARCH}\ollama_runners\*"; DestDir: "{app}\ollama_runners"; Flags: ignoreversion 64bit recursesubdirs
+#if DirExists("..\dist\windows-amd64")
+Source: "..\dist\windows-amd64-app.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}" ;Check: not IsArm64();  Flags: ignoreversion 64bit
+Source: "..\dist\windows-amd64\ollama.exe"; DestDir: "{app}"; Check: not IsArm64(); Flags: ignoreversion 64bit
+Source: "..\dist\windows-amd64\ollama_runners\*"; DestDir: "{app}\ollama_runners"; Check: not IsArm64(); Flags: ignoreversion 64bit recursesubdirs
+#endif
+
+#if DirExists("..\dist\windows-arm64")
+Source: "..\dist\windows-arm64-app.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}" ;Check: IsArm64();  Flags: ignoreversion 64bit
+Source: "..\dist\windows-arm64\ollama.exe"; DestDir: "{app}"; Check: IsArm64(); Flags: ignoreversion 64bit
+Source: "..\dist\windows-arm64\ollama_runners\*"; DestDir: "{app}\ollama_runners"; Check: IsArm64(); Flags: ignoreversion 64bit recursesubdirs
+#endif
+
 Source: "..\dist\ollama_welcome.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 #if DirExists("..\dist\windows-amd64\cuda")
-  Source: "..\dist\windows-amd64\cuda\*"; DestDir: "{app}\cuda\"; Flags: ignoreversion recursesubdirs
+  Source: "..\dist\windows-amd64\cuda\*"; DestDir: "{app}\cuda\"; Check: not IsArm64(); Flags: ignoreversion recursesubdirs
 #endif
 #if DirExists("..\dist\windows-amd64\oneapi")
-  Source: "..\dist\windows-amd64\oneapi\*"; DestDir: "{app}\oneapi\"; Flags: ignoreversion recursesubdirs
+  Source: "..\dist\windows-amd64\oneapi\*"; DestDir: "{app}\oneapi\"; Check: not IsArm64(); Flags: ignoreversion recursesubdirs
 #endif
 #if DirExists("..\dist\windows-amd64\rocm")
-  Source: "..\dist\windows-amd64\rocm\*"; DestDir: "{app}\rocm\"; Flags: ignoreversion recursesubdirs
+  Source: "..\dist\windows-amd64\rocm\*"; DestDir: "{app}\rocm\"; Check: not IsArm64(); Flags: ignoreversion recursesubdirs
 #endif
 
 
