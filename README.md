@@ -296,6 +296,7 @@ See the [API documentation](./docs/api.md) for all endpoints.
 - [Kerlig AI](https://www.kerlig.com/) (AI writing assistant for macOS)
 - [AI Studio](https://github.com/MindWorkAI/AI-Studio)
 - [Sidellama](https://github.com/gyopak/sidellama) (browser-based LLM client)
+- [Cherry Studio](https://github.com/kangfenmao/cherry-studio) (Desktop client with Ollama support)
 
 ### Terminal
 
