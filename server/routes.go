@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +24,10 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/ollama/ollama/api"
+	"github.com/ollama/ollama/auth"
 	"github.com/ollama/ollama/envconfig"
 	"github.com/ollama/ollama/gpu"
 	"github.com/ollama/ollama/llm"
@@ -928,7 +931,6 @@ func (s *Server) CreateBlobHandler(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	_, err = os.Stat(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -938,6 +940,11 @@ func (s *Server) CreateBlobHandler(c *gin.Context) {
 		return
 	default:
 		c.Status(http.StatusOK)
+		return
+	}
+	if c.GetHeader("X-Redirect-Create") == "1" && s.isLocal(c) {
+		c.Header("LocalLocation", path)
+		c.Status(http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -953,6 +960,54 @@ func (s *Server) CreateBlobHandler(c *gin.Context) {
 	}
 
 	c.Status(http.StatusCreated)
+}
+
+func (s *Server) isLocal(c *gin.Context) bool {
+	if authz := c.GetHeader("Authorization"); authz != "" {
+		parts := strings.Split(authz, ":")
+		if len(parts) != 3 {
+			return false
+		}
+
+		clientPublicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fmt.Sprintf("ssh-ed25519 %s", parts[0])))
+		if err != nil {
+			return false
+		}
+
+		// partialRequestData is formatted as http.Method,http.requestURI,timestamp,nonce
+		requestData, err := base64.StdEncoding.DecodeString(parts[1])
+		if err != nil {
+			return false
+		}
+
+		partialRequestDataParts := strings.Split(string(requestData), ",")
+		if len(partialRequestDataParts) != 3 {
+			return false
+		}
+
+		signature, err := base64.StdEncoding.DecodeString(parts[2])
+		if err != nil {
+			return false
+		}
+
+		if err := clientPublicKey.Verify(requestData, &ssh.Signature{Format: clientPublicKey.Type(), Blob: signature}); err != nil {
+			return false
+		}
+
+		serverPublicKey, err := auth.GetPublicKey()
+		if err != nil {
+			slog.Error(fmt.Sprintf("failed to get server public key: %v", err))
+			return false
+		}
+		
+		if bytes.Equal(serverPublicKey.Marshal(), clientPublicKey.Marshal()) {
+			return true
+		}
+
+		return false
+	}
+
+	return false
 }
 
 func isLocalIP(ip netip.Addr) bool {

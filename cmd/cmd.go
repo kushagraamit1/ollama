@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -260,6 +262,8 @@ func tempZipFiles(path string) (string, error) {
 	return tempfile.Name(), nil
 }
 
+var ErrBlobExists = errors.New("blob exists")
+
 func createBlob(cmd *cobra.Command, client *api.Client, path string) (string, error) {
 	bin, err := os.Open(path)
 	if err != nil {
@@ -277,10 +281,118 @@ func createBlob(cmd *cobra.Command, client *api.Client, path string) (string, er
 	}
 
 	digest := fmt.Sprintf("sha256:%x", hash.Sum(nil))
+
+	// We check if we can find the models directory locally
+	// If we can, we return the path to the directory
+	// If we can't, we return an error
+	// If the blob exists already, we return the digest
+	dest, err := getLocalPath(cmd.Context(), digest)
+
+	if errors.Is(err, ErrBlobExists) {
+		return digest, nil
+	}
+
+	// Successfully found the model directory
+	if err == nil {
+		// Copy blob in via OS specific copy
+		// Linux errors out to use io.copy
+		err = localCopy(path, dest)
+		if err == nil {
+			return digest, nil
+		}
+
+		// Default copy using io.copy
+		err = defaultCopy(path, dest)
+		if err == nil {
+			return digest, nil
+		}
+	}
+
+	// If at any point copying the blob over locally fails, we default to the copy through the server
 	if err = client.CreateBlob(cmd.Context(), digest, bin); err != nil {
 		return "", err
 	}
 	return digest, nil
+}
+
+func getLocalPath(ctx context.Context, digest string) (string, error) {
+	ollamaHost := envconfig.Host
+
+	client := http.DefaultClient
+	base := &url.URL{
+		Scheme: ollamaHost.Scheme,
+		Host:   net.JoinHostPort(ollamaHost.Host, ollamaHost.Port),
+	}
+
+	data, err := json.Marshal(digest)
+	if err != nil {
+		return "", err
+	}
+
+	reqBody := bytes.NewReader(data)
+	path := fmt.Sprintf("/api/blobs/%s", digest)
+	requestURL := base.JoinPath(path)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	authz, err := api.Authorization(ctx, request)
+	if err != nil {
+		return "", err
+	}
+
+	request.Header.Set("Authorization", authz)
+	request.Header.Set("User-Agent", fmt.Sprintf("ollama/%s (%s %s) Go/%s", version.Version, runtime.GOARCH, runtime.GOOS, runtime.Version()))
+	request.Header.Set("X-Redirect-Create", "1")
+
+	resp, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusTemporaryRedirect {
+		dest := resp.Header.Get("LocalLocation")
+
+		return dest, nil
+	}
+	return "", ErrBlobExists
+}
+
+func defaultCopy(path string, dest string) error {
+	// This function should be called if the server is local
+	// It should find the model directory, copy the blob over, and return the digest
+	dirPath := filepath.Dir(dest)
+
+	if err := os.MkdirAll(dirPath, 0o755); err != nil {
+		return err
+	}
+
+	// Copy blob over
+	sourceFile, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("could not open source file: %v", err)
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("could not create destination file: %v", err)
+	}
+	defer destFile.Close()
+
+	_, err = io.CopyBuffer(destFile, sourceFile, make([]byte, 4*1024*1024))
+	if err != nil {
+		return fmt.Errorf("error copying file: %v", err)
+	}
+
+	err = destFile.Sync()
+	if err != nil {
+		return fmt.Errorf("error flushing file: %v", err)
+	}
+
+	return nil
 }
 
 func RunHandler(cmd *cobra.Command, args []string) error {
