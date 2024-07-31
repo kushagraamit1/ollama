@@ -1332,6 +1332,7 @@ func NewCLI() *cobra.Command {
 			appendEnvDocs(cmd, []envconfig.EnvVar{envVars["OLLAMA_HOST"], envVars["OLLAMA_NOHISTORY"]})
 		case serveCmd:
 			appendEnvDocs(cmd, []envconfig.EnvVar{
+				envVars["OLLAMA_APIKEY"],
 				envVars["OLLAMA_DEBUG"],
 				envVars["OLLAMA_HOST"],
 				envVars["OLLAMA_KEEP_ALIVE"],
