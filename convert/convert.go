@@ -105,6 +105,8 @@ func Convert(fsys fs.FS, ws io.WriteSeeker) error {
 		conv = &phi3{}
 	case "BertModel":
 		conv = &bert{}
+	case "CohereForCausalLM":
+		conv = &commandr{}
 	default:
 		return errors.New("unsupported architecture")
 	}

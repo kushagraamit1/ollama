@@ -43,7 +43,6 @@ func parseTokenizer(fsys fs.FS, specialTokenTypes []string) (*Tokenizer, error) 
 		Vocabulary: v,
 		Pre:        "default",
 	}
-
 	addedTokens := make(map[string]token)
 	if f, err := fsys.Open("tokenizer.json"); errors.Is(err, os.ErrNotExist) {
 	} else if err != nil {
@@ -99,10 +98,15 @@ func parseTokenizer(fsys fs.FS, specialTokenTypes []string) (*Tokenizer, error) 
 			return nil, err
 		}
 
+		var chatTemplates []map[string]interface{}
 		if template, ok := p["chat_template"]; ok {
 			if err := json.Unmarshal(template, &t.Template); err != nil {
-				return nil, err
-			}
+				if err := json.Unmarshal(template, &chatTemplates); err != nil {
+					return nil, err
+				}
+
+				t.Template = chatTemplates[0]["template"].(string)
+			} 
 		}
 
 		for _, st := range specialTokenTypes {
