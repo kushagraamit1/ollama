@@ -300,7 +300,7 @@ See the [API documentation](./docs/api.md) for all endpoints.
 - [Sidellama](https://github.com/gyopak/sidellama) (browser-based LLM client)
 - [LLMStack](https://github.com/trypromptly/LLMStack) (No-code multi-agent framework to build LLM agents and workflows)
 - [BoltAI for Mac](https://boltai.com) (AI Chat Client for Mac)
-- [Braina AI for Windows](https://brainasoft.com/braina/) (AI Chat Client for Windows with Voice, Web Search etc.)
+- [Braina AI for Windows](https://www.brainasoft.com/braina/) (AI Chat Client for Windows with Voice, Web Search etc.)
 
 ### Terminal
 
