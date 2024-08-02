@@ -378,7 +378,7 @@ jobs:
           & "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\Launch-VsDevShell.ps1"
           cd $env:GITHUB_WORKSPACE
           $env:CMAKE_SYSTEM_VERSION="10.0.22621.0"
-          $env:PATH="$gopath;$gccpath;$env:PATH"
+          $env:PATH="$gopath;$gccpath;$env:PATH;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
           echo $env:PATH
           .\scripts\build_windows.ps1 buildOllama buildApp gatherDependencies distZip
         name: 'Windows Build'
