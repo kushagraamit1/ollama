@@ -3,7 +3,7 @@ ARG CMAKE_VERSION=3.22.1
 # this CUDA_VERSION corresponds with the one specified in docs/gpu.md
 ARG CUDA_VERSION=11.3.1
 ARG ROCM_VERSION=6.1.2
-ARG ASCEND_VERSION=24.0.RC1-openeuler20.03
+ARG ASCEND_VERSION=8.0.rc1-910b-openeuler20.03
 
 # Copy the minimal context we need to run the generate scripts
 FROM scratch AS llm-code
@@ -50,7 +50,7 @@ RUN mkdir /tmp/scratch && \
     mkdir -p /go/src/github.com/ollama/ollama/dist/deps/ && \
     (cd /tmp/scratch/ && tar czvf /go/src/github.com/ollama/ollama/dist/deps/ollama-linux-amd64-rocm.tgz . )
 
-FROM --platform=linux/arm64 swr.cn-south-1.myhuaweicloud.com/ascendhub/ascend-infer:${ASCEND_VERSION} AS ascend-build-arm64
+FROM --platform=linux/arm64 cosdt/cann:${ASCEND_VERSION} AS ascend-build-arm64
 ARG CMAKE_VERSION
 COPY ./scripts/rh_linux_deps.sh /
 RUN CMAKE_VERSION=${CMAKE_VERSION} sh /rh_linux_deps.sh
@@ -120,6 +120,7 @@ WORKDIR /go/src/github.com/ollama/ollama
 COPY . .
 COPY --from=static-build-arm64 /go/src/github.com/ollama/ollama/llm/build/linux/ llm/build/linux/
 COPY --from=cuda-build-arm64 /go/src/github.com/ollama/ollama/llm/build/linux/ llm/build/linux/
+COPY --from=ascend-build-arm64 /go/src/github.com/ollama/ollama/llm/build/linux/ llm/build/linux/
 ARG GOFLAGS
 ARG CGO_CFLAGS
 RUN go build -trimpath .
