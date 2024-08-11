@@ -54,7 +54,7 @@ if [ "$(id -u)" -ne 0 ]; then
     SUDO="sudo"
 fi
 
-NEEDS=$(require curl awk grep sed tee xargs)
+NEEDS=$(require curl awk grep sed tee xargs xz)
 if [ -n "$NEEDS" ]; then
     status "ERROR: The following tools are required but missing:"
     for NEED in $NEEDS; do
@@ -71,11 +71,11 @@ OLLAMA_INSTALL_DIR=${OLLAMA_INSTALL_DIR:-${BINDIR}}
 status "Installing ollama to $OLLAMA_INSTALL_DIR"
 $SUDO install -o0 -g0 -m755 -d $BINDIR
 $SUDO install -o0 -g0 -m755 -d "$OLLAMA_INSTALL_DIR"
-if curl -I --silent --fail --location "https://ollama.com/download/ollama-linux-${ARCH}.tgz${VER_PARAM}" >/dev/null ; then
+if curl -I --silent --fail --location "https://ollama.com/download/ollama-linux-${ARCH}.tar.xz${VER_PARAM}" >/dev/null ; then
     status "Downloading Linux ${ARCH} bundle"
     curl --fail --show-error --location --progress-bar \
-        "https://ollama.com/download/ollama-linux-${ARCH}.tgz${VER_PARAM}" | \
-        $SUDO tar -xzf - -C "$OLLAMA_INSTALL_DIR"
+        "https://ollama.com/download/ollama-linux-${ARCH}.tar.xz${VER_PARAM}" | \
+        $SUDO tar -xJf - -C "$OLLAMA_INSTALL_DIR"
     BUNDLE=1
 else
     status "Downloading Linux ${ARCH} CLI"
@@ -178,7 +178,7 @@ check_gpu() {
                 nvidia) available lshw && $SUDO lshw -c display -numeric -disable network | grep -q 'vendor: .* \[10DE\]' || return 1 ;;
                 amdgpu) available lshw && $SUDO lshw -c display -numeric -disable network | grep -q 'vendor: .* \[1002\]' || return 1 ;;
             esac ;;
-        nvidia-smi) available nvidia-smi || return 1 ;;
+        nvidia-smi) available nvidia-smi || test -f /etc/nv_tegra_release || return 1 ;;
     esac
 }
 
