@@ -116,10 +116,12 @@ RUN go build -trimpath .
 
 # Runtime stages
 FROM --platform=linux/amd64 ubuntu:22.04 as runtime-amd64
-RUN apt-get update && apt-get install -y ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=build-amd64 /go/src/github.com/ollama/ollama/ollama /bin/ollama
 FROM --platform=linux/arm64 ubuntu:22.04 as runtime-arm64
-RUN apt-get update && apt-get install -y ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=build-arm64 /go/src/github.com/ollama/ollama/ollama /bin/ollama
 
 # Radeon images are much larger so we keep it distinct from the CPU/CUDA image
