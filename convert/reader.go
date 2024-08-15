@@ -62,6 +62,7 @@ func parseTensors(fsys fs.FS) ([]Tensor, error) {
 	}{
 		{"model-*-of-*.safetensors", parseSafetensors},
 		{"model.safetensors", parseSafetensors},
+		{"adapters.safetensors", parseSafetensors},
 		{"pytorch_model-*-of-*.bin", parseTorch},
 		{"pytorch_model.bin", parseTorch},
 		{"consolidated.*.pth", parseTorch},
